@@ -1,0 +1,4 @@
+/libloragw
+/sx1302_hal
+/swig/loragw_wrap*
+__pycache__
