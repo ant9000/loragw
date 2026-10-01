@@ -1,10 +1,13 @@
-import sys, os, json, re, time
+import sys, os, json, re, time, signal
 import loragw
 import gpiod
 from gpiod.line import Direction, Value
 
 SX1302_RESET_PIN=4      # SX1302 reset
 SX1302_POWER_EN_PIN=17  # SX1302 power enable
+
+NB_PKT_MAX = 255
+FETCH_SLEEP_MS = 10
 
 if len(sys.argv) < 2:
     print("Usage: %s conf.json" % os.path.basename(sys.argv[0]))
@@ -28,7 +31,7 @@ lines = gpiod.request_lines(
 
 # board configation
 boardconf = loragw.lgw_conf_board_s()
-boardconf.lorawan_public =  cfg["lorawan_public"]
+boardconf.lorawan_public = cfg["lorawan_public"]
 assert(cfg["com_type"].upper() in ("SPI", "USB"))
 boardconf.com_type = getattr(loragw, "LGW_COM_%s" % cfg["com_type"].upper())
 boardconf.com_path = cfg["com_path"]
@@ -119,6 +122,39 @@ assert(res == loragw.LGW_HAL_SUCCESS)
 res, eui = loragw.lgw_get_eui()
 assert(res == loragw.LGW_HAL_SUCCESS) 
 print("EUI: 0x%016x" % eui)
+
+rxpkt = loragw.lgw_pkt_rx_array_new(NB_PKT_MAX)
+
+running = True
+def signal_handler(sig, frame):
+    global running
+    print("Stopping...")
+    running = False
+signal.signal(signal.SIGINT, signal_handler)
+signal.signal(signal.SIGHUP, signal_handler)
+signal.signal(signal.SIGTERM, signal_handler)
+
+while running:
+    nb_pkt = loragw.lgw_receive(NB_PKT_MAX, rxpkt)
+    assert(nb_pkt != loragw.LGW_HAL_ERROR)
+
+    if nb_pkt == 0:
+        time.sleep(FETCH_SLEEP_MS)
+        continue
+
+    for i in range(nb_pkt):
+        p = rxpkt[i]
+        print(
+            "received packet: status %u, size %u, modulation %u, BW %u, DR %u, CR %u, channel RSSI %.1f" % (
+             p.status, p.size, p.modulation, p.bandwidth, p.datarate, p.coderate, p.rssic
+        ))
+        print(
+            "\tchannel %1u, rf chain: %1u, freq: %.6lf, modem id: %2u" % (
+            p.if_chain, p.rf_chain, p.freq_hz / 1e6, p.modem_id
+        ))
+        # TODO: how to handle binary payload?
+        payload = loragw.cdata(p.payload, p.size)
+        print("\t%s" % payload)
 
 res = loragw.lgw_stop()
 assert(res == loragw.LGW_HAL_SUCCESS) 

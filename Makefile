@@ -40,5 +40,5 @@ clean:
 distclean: clean
 	rm -rf libloragw/* sx1302_hal
 
-test:
-	$(PYTHON) test.py libloragw/global_conf.json
+test: build
+	$(PYTHON) sniffer.py libloragw/global_conf.json
