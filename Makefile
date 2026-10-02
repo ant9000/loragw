@@ -6,9 +6,9 @@ INCLUDES = -I. -I./libloragw/include
 LDFLAGS = $(shell python3-config --ldflags)
 LIBS = -Llibloragw/lib -lloragw -ltinymt32 -lrt -lm
 
-.PHONY: all clean build install
+.PHONY: all clean
 
-all: build
+all: _loragw.so
 
 sx1302_hal:
 	git clone --depth=1 https://github.com/Lora-net/sx1302_hal
@@ -28,7 +28,7 @@ libloragw/lib/libloragw.a: sx1302_hal/libloragw/libloragw.a
 	cp sx1302_hal/packet_forwarder/global_conf.json.sx1250.EU868 libloragw/global_conf.json
 	perl -i -pe 's/static LGW_SPECTRAL_SCAN_RESULT_SIZE/LGW_SPECTRAL_SCAN_RESULT_SIZE/g' libloragw/include/loragw_hal.h
 
-build: libloragw/lib/libloragw.a
+_loragw.so: libloragw/lib/libloragw.a swig/loragw.i
 	$(SWIG) -std=c99 -python -outdir . swig/loragw.i
 	$(CC) $(CFLAGS) $(INCLUDES) -c swig/loragw_wrap.c -o swig/loragw_wrap.o
 	$(CC) $(LDFLAGS) -shared swig/loragw_wrap.o $(LIBS) -o _loragw.so
@@ -40,5 +40,5 @@ clean:
 distclean: clean
 	rm -rf libloragw/* sx1302_hal
 
-test: build
+test: _loragw.so
 	$(PYTHON) sniffer.py libloragw/global_conf.json
