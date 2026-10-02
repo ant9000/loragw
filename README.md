@@ -6,3 +6,5 @@ necessary wrappers.
 
 With `make test` a very basic sniffer is run. Modify the SX1302 pins in
 `sniffer.py` if they differ from the specified ones.
+
+Beware - this is still a WIP.
