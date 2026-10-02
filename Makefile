@@ -41,4 +41,4 @@ distclean: clean
 	rm -rf libloragw/* sx1302_hal
 
 test: _loragw.so
-	$(PYTHON) sniffer.py libloragw/global_conf.json
+	$(PYTHON) sniffer.py

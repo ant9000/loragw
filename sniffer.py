@@ -1,4 +1,4 @@
-import sys, os, time, signal
+import time, signal
 from loragw import SX1302
 
 SX1302_RESET_PIN=4      # SX1302 reset
@@ -6,16 +6,42 @@ SX1302_POWER_EN_PIN=17  # SX1302 power enable
 
 FETCH_SLEEP_MS = 10
 
-if len(sys.argv) < 2:
-    print("Usage: %s conf.json" % os.path.basename(sys.argv[0]))
-    sys.exit(1)
-
-conf_file = sys.argv[1]
-try:
-    json_cfg = open(conf_file).read()
-except:
-    print("ERROR: %s not found or unreadable" % conf_file)
-    sys.exit(1)
+json_cfg = """
+{
+    "SX130x_conf": {
+        "com_type": "SPI",
+        "com_path": "/dev/spidev0.0",
+        "lorawan_public": false,
+        "clksrc": 0,
+        "full_duplex": false,
+        "radio_0": {
+            "enable": true,
+            "type": "SX1250",
+            "freq": 867500000,
+            "rssi_offset": -215.4,
+            "rssi_tcomp": {"coeff_a": 0, "coeff_b": 0, "coeff_c": 20.41, "coeff_d": 2162.56, "coeff_e": 0},
+            "tx_enable": false
+        },
+        "radio_1": {
+            "enable": true,
+            "type": "SX1250",
+            "freq": 868500000,
+            "rssi_offset": -215.4,
+            "rssi_tcomp": {"coeff_a": 0, "coeff_b": 0, "coeff_c": 20.41, "coeff_d": 2162.56, "coeff_e": 0},
+            "tx_enable": false
+        },
+        "chan_multiSF_All": {"spreading_factor_enable": [ 5, 6, 7, 8, 9, 10, 11, 12 ]},
+        "chan_multiSF_0": {"enable": true, "radio": 1, "if": -400000},
+        "chan_multiSF_1": {"enable": true, "radio": 1, "if": -200000},
+        "chan_multiSF_2": {"enable": true, "radio": 1, "if":  0},
+        "chan_multiSF_3": {"enable": true, "radio": 0, "if": -400000},
+        "chan_multiSF_4": {"enable": true, "radio": 0, "if": -200000},
+        "chan_multiSF_5": {"enable": true, "radio": 0, "if":  0},
+        "chan_multiSF_6": {"enable": true, "radio": 0, "if":  200000},
+        "chan_multiSF_7": {"enable": true, "radio": 0, "if":  400000}
+    }
+}
+"""
 
 running = True
 def signal_handler(sig, frame):
