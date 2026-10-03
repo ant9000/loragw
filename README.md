@@ -8,3 +8,11 @@ With `make test` a very basic sniffer is run. Modify the SX1302 pins in
 `sniffer.py` if they differ from the specified ones.
 
 Beware - this is still a WIP.
+
+# Dependencies #
+
+Tested on Debian 13:
+
+```
+sudo apt install build-essentials python3-dev python3-libgpiod swig
+```
