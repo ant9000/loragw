@@ -70,6 +70,7 @@ class SX1302:
                     ),
                 }
             )
+        self.__rxpkts = lgw_pkt_rx_array_new(self.NB_PKT_MAX)
 
     def debug_print(self, message):
         if self.debug:
@@ -317,8 +318,6 @@ class SX1302:
             raise Exception("ERROR: lgw_stop returned %d" % res)
 
     def receive(self):
-        if not getattr(self, "__rxpkt", None):
-            self.__rxpkts = lgw_pkt_rx_array_new(self.NB_PKT_MAX)
         class wrapper:
             def __init__(self, rxpkt):
                 self.__dict__["__rxpkt"] = rxpkt
