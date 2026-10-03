@@ -67,7 +67,7 @@ while running:
         ))
         print("\tpayload: ", pkt.payload)
     else:
-        time.sleep(FETCH_SLEEP_MS)
+        time.sleep(0.001 * FETCH_SLEEP_MS)
         continue
 
 modem.stop()
