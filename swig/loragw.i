@@ -51,6 +51,21 @@ from gpiod.line import Direction, Value
 class SX1302:
     NB_PKT_MAX = 255
 
+    def status(val):
+        return {STAT_NO_CRC: "NO CRC", STAT_CRC_BAD: "BAD CRC", STAT_CRC_OK: "CRC OK"}.get(val, "UNDEF")
+
+    def modulation(val):
+        return {MOD_CW: "CW", MOD_LORA: "LORA", MOD_FSK: "FSK"}.get(val, "UNDEF")
+
+    def bandwidth(val):
+        return {BW_500KHZ: "500kHz", BW_250KHZ: "250kHz", BW_125KHZ: "125kHz"}.get(val, "UNDEF")
+
+    def datarate(val):
+        return "SF%d" % val
+
+    def coderate(val):
+        return "4/%d" % (val + 4)
+
     def __init__(self, json_cfg, debug=False, reset_pin=None, power_pin=None):
         self.debug = debug
         self.load_config(json_cfg)
@@ -275,7 +290,7 @@ class SX1302:
             if res != LGW_HAL_SUCCESS:
                 raise Exception("ERROR: invalid configuration for demodulation parameters")
 
-        # Lora multi-SF channels configuration
+        # Lora multi-SF channels configuration (bandwidth cannot be set)
         for i in range(LGW_MULTI_NB):
             chan_cfg = cfg.get("chan_multiSF_%d" % i, None)
             if chan_cfg is None:
@@ -327,6 +342,16 @@ class SX1302:
                 p = self.__dict__["__rxpkt"]
                 if key == "payload":
                     return cdata(p.payload, p.size)
+                elif key == "status":
+                    return SX1302.status(p.status)
+                elif key == "modulation":
+                    return SX1302.modulation(p.modulation)
+                elif key == "bandwidth":
+                    return SX1302.bandwidth(p.bandwidth)
+                elif key == "datarate":
+                    return SX1302.datarate(p.datarate)
+                elif key == "coderate":
+                    return SX1302.coderate(p.coderate)
                 else:
                     return getattr(p, key)
 
