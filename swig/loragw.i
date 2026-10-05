@@ -40,6 +40,7 @@ int lgw_get_eui(uint64_t * OUTPUT);
 %}
 
 %array_class(struct lgw_pkt_rx_s, lgw_pkt_rx_array);
+%array_functions(struct lgw_tx_gain_s, lgw_tx_gain_s_array);
 
 %pythonbegin %{
 import json, re, time
@@ -228,6 +229,10 @@ class SX1302:
                 raise Exception("ERROR: Failed to configure the SX1261 radio")
 
         # RF chains configuration
+        self.tx_enable = {}
+        self.tx_freq_min = {}
+        self.tx_freq_max = {}
+        self.tx_lut = {}
         for i in range(LGW_RF_CHAIN_NB):
             radio_cfg = cfg.get("radio_%i" % i, None)
             if not radio_cfg:
@@ -246,7 +251,7 @@ class SX1302:
                     rfconf.rssi_offset = float(rssi_offset)
                 for k in "abcde":
                     name = "coeff_%s" % k
-                    coeff = radio_cfg["rssi_tcomp"].get(name, None)
+                    coeff = radio_cfg.get("rssi_tcomp", {}).get(name, None)
                     if type(coeff) in (int, float):
                         setattr(rfconf.rssi_tcomp, name, float(coeff))
                 radio_type = radio_cfg.get("type", None)
@@ -260,16 +265,86 @@ class SX1302:
                     self.debug_print("WARNING: invalid radio type: %s (should be SX1255 or SX1257 or SX1250)" % radio_type)
                 rfconf.single_input_mode = radio_cfg.get("single_input_mode", False)
 
-                # TODO
-                self.debug_print("TODO: process configuration for TX - disabling for now")
-                rfconf.tx_enable = False
-
-            print(
-                "INFO: radio %i enabled (type %s), center frequency %u, RSSI offset %f, tx enabled %d, single input mode %d" % (
-                i, radio_type, rfconf.freq_hz, rfconf.rssi_offset, rfconf.tx_enable, rfconf.single_input_mode))
-            res = lgw_rxrf_setconf(i, rfconf)
-            if res != LGW_HAL_SUCCESS:
-                raise Exception("ERROR: invalid configuration for radio %i" % i)
+                rfconf.tx_enable = radio_cfg.get("tx_enable", False)
+                self.tx_enable[i] = rfconf.tx_enable
+                if rfconf.tx_enable:
+                    # tx is enabled on this rf chain, we need its frequency range
+                    self.tx_freq_min[i] = radio_cfg.get("tx_freq_min", 0)
+                    self.tx_freq_max[i] = radio_cfg.get("tx_freq_max", 0)
+                    if self.tx_freq_min[i] == 0 or self.tx_freq_max[i] == 0:
+                        self.debug_print("WARNING: no frequency range specified for TX rf chain %d" % i)
+                    # set configuration for tx gains
+                    self.tx_lut[i] = lgw_tx_gain_lut_s()
+                    tx_gain_lut = radio_cfg.get("tx_gain_lut", None)
+                    if type(tx_gain_lut) == list and len(tx_gain_lut):
+                        self.tx_lut[i].size = len(tx_gain_lut)
+                        # detect if we have a sx125x or sx1250 configuration
+                        if "pwr_idx" in tx_gain_lut[0]:
+                            self.debug_print("INFO: Configuring Tx Gain LUT for rf_chain %u with %u indexes for sx1250" % (i, self.tx_lut[i].size))
+                            sx1250_tx_lut = True
+                        else:
+                            self.debug_print("INFO: Configuring Tx Gain LUT for rf_chain %u with %u indexes for sx125x" % (i, self.tx_lut[i].size))
+                            sx1250_tx_lut = False
+                        # parse the table
+                        lut = new_lgw_tx_gain_s_array(TX_GAIN_LUT_SIZE_MAX)
+                        for j in range(self.tx_lut[i].size):
+                            l = lgw_tx_gain_s()
+                            if j >= TX_GAIN_LUT_SIZE_MAX:
+                                self.debug_print("ERROR: TX Gain LUT [%u] index %d not supported, skip it" % (i, j)) 
+                                self.tx_lut[i].size = TX_GAIN_LUT_SIZE_MAX
+                                break
+                            rf_power = tx_gain_lut[i].get("rf_power", None)
+                            if type(rf_power) == int:
+                                l.rf_power = rf_power & 0xFF
+                            else:
+                                self.debug_print("WARNING: Data type for %s[%d] seems wrong, please check" % ("rf_power", j))
+                                l.rf_power = 0
+                            pa_gain = tx_gain_lut[i].get("pa_gain", None)
+                            if type(pa_gain) == int:
+                                l.pa_gain = pa_gain & 0xFF
+                            else:
+                                self.debug_print("WARNING: Data type for %s[%d] seems wrong, please check" % ("pa_gain", j))
+                                l.pa_gain = 0
+                            if not sx1250_tx_lut:
+                                dig_gain = tx_gain_lut[i].get("dig_gain", None)
+                                if type(dig_gain) == int:
+                                    l.dig_gain = dig_gain & 0xFF
+                                else:
+                                    self.debug_print("WARNING: Data type for %s[%d] seems wrong, please check" % ("dig_gain", j))
+                                    self.tx_lut[i].l.dig_gain = 0
+                                dac_gain = tx_gain_lut[i].get("dac_gain", None)
+                                if type(dac_gain) == int:
+                                    l.dac_gain = dac_gain & 0xFF
+                                else:
+                                    self.debug_print("WARNING: Data type for %s[%d] seems wrong, please check" % ("dac_gain", j))
+                                    l.dac_gain = 0
+                                mix_gain = tx_gain_lut[i].get("mix_gain", None)
+                                if type(mix_gain) == int:
+                                    l.mix_gain = mix_gain & 0xFF
+                                else:
+                                    self.debug_print("WARNING: Data type for %s[%d] seems wrong, please check" % ("mix_gain", j))
+                                    l.mix_gain = 0
+                            else:
+                                l.mix_gain = 5
+                                pwr_idx = tx_gain_lut[i].get("pwr_idx", None)
+                                if type(pwr_idx) == int:
+                                    l.pwr_idx = pwr_idx & 0xFF
+                                else:
+                                    self.debug_print("WARNING: Data type for %s[%d] seems wrong, please check" % ("pwr_idx", j))
+                                    l.pwr_idx = 0
+                            lgw_tx_gain_s_array_setitem(lut, j, l)
+                        self.tx_lut[i].lut = lut
+                        res = lgw_txgain_setconf(i, self.tx_lut[i])
+                        if (res != LGW_HAL_SUCCESS):
+                            raise Exception("ERROR: Failed to configure concentrator TX Gain LUT for rf_chain %u" % i)
+                    else:
+                        self.debug_print("WARNING: No TX gain LUT defined for rf_chain %u" % i)
+                print(
+                    "INFO: radio %i enabled (type %s), center frequency %u, RSSI offset %f, tx enabled %d, single input mode %d" % (
+                    i, radio_type, rfconf.freq_hz, rfconf.rssi_offset, rfconf.tx_enable, rfconf.single_input_mode))
+                res = lgw_rxrf_setconf(i, rfconf)
+                if res != LGW_HAL_SUCCESS:
+                    raise Exception("ERROR: invalid configuration for radio %i" % i)
 
         # demodulators configuration
         demod_cfg = cfg.get("chan_multiSF_All", None)
