@@ -48,24 +48,29 @@ from gpiod.line import Direction, Value
 %}
 
 %pythoncode %{
+
+class RxPacket:
+    def __init__(self, rxpkt):
+        self.__dict__["__rxpkt"] = rxpkt
+    def __getattribute__(self, key):
+        if key == "__dict__":
+            return super().__getattribute__(key)
+        p = self.__dict__["__rxpkt"]
+        if key == "payload":
+            return cdata(p.payload, p.size)
+        elif key == "status":
+            return {STAT_NO_CRC: "NO CRC", STAT_CRC_BAD: "BAD CRC", STAT_CRC_OK: "CRC OK"}.get(p.status, "UNDEF")
+        elif key == "modulation":
+            return {MOD_CW: "CW", MOD_LORA: "LORA", MOD_FSK: "FSK"}.get(p.modulation, "UNDEF")
+        elif key == "bandwidth":
+            return {BW_500KHZ: "500kHz", BW_250KHZ: "250kHz", BW_125KHZ: "125kHz"}.get(p.bandwidth, "UNDEF")
+        elif key == "coderate":
+            return "4/%d" % (p.coderate + 4)
+        else:
+            return getattr(p, key)
+
 class SX1302:
     NB_PKT_MAX = 255
-
-    def status(val):
-        return {STAT_NO_CRC: "NO CRC", STAT_CRC_BAD: "BAD CRC", STAT_CRC_OK: "CRC OK"}.get(val, "UNDEF")
-
-    def modulation(val):
-        return {MOD_CW: "CW", MOD_LORA: "LORA", MOD_FSK: "FSK"}.get(val, "UNDEF")
-
-    def bandwidth(val):
-        return {BW_500KHZ: "500kHz", BW_250KHZ: "250kHz", BW_125KHZ: "125kHz"}.get(val, "UNDEF")
-
-    def datarate(val):
-        return "SF%d" % val
-
-    def coderate(val):
-        return "4/%d" % (val + 4)
-
     def __init__(self, json_cfg, debug=False, reset_pin=None, power_pin=None):
         self.debug = debug
         self.load_config(json_cfg)
@@ -142,7 +147,7 @@ class SX1302:
         res = lgw_board_setconf(boardconf)
         if res != LGW_HAL_SUCCESS:
             raise Exception("ERROR: Failed to configure board")
-        
+
         # antenna gain configuration
         antenna_gain = cfg.get("antenna_gain", None)
         if type(antenna_gain) == int:
@@ -200,7 +205,7 @@ class SX1302:
                 self.debug_print("WARNING: Data type for sx1261_conf.rssi_offset seems wrong, please check")
                 sx1261conf.rssi_offset = 0
 
-            # spectral scan configuration 
+            # spectral scan configuration
             ss_cfg = sx1261_cfg.get("spectral_scan", None)
             if ss_cfg is None:
                 self.debug_print("INFO: no configuration for Spectral Scan")
@@ -252,13 +257,13 @@ class SX1302:
                 elif radio_type == "SX1250":
                     rfconf.type = LGW_RADIO_TYPE_SX1250
                 else:
-                    self.debug_print("WARNING: invalid radio type: %s (should be SX1255 or SX1257 or SX1250)" % radio_type) 
+                    self.debug_print("WARNING: invalid radio type: %s (should be SX1255 or SX1257 or SX1250)" % radio_type)
                 rfconf.single_input_mode = radio_cfg.get("single_input_mode", False)
 
                 # TODO
                 self.debug_print("TODO: process configuration for TX - disabling for now")
                 rfconf.tx_enable = False
-                    
+
             print(
                 "INFO: radio %i enabled (type %s), center frequency %u, RSSI offset %f, tx enabled %d, single input mode %d" % (
                 i, radio_type, rfconf.freq_hz, rfconf.rssi_offset, rfconf.tx_enable, rfconf.single_input_mode))
@@ -333,32 +338,10 @@ class SX1302:
             raise Exception("ERROR: lgw_stop returned %d" % res)
 
     def receive(self):
-        class wrapper:
-            def __init__(self, rxpkt):
-                self.__dict__["__rxpkt"] = rxpkt
-            def __getattribute__(self, key):
-                if key == "__dict__":
-                    return super().__getattribute__(key)
-                p = self.__dict__["__rxpkt"]
-                if key == "payload":
-                    return cdata(p.payload, p.size)
-                elif key == "status":
-                    return SX1302.status(p.status)
-                elif key == "modulation":
-                    return SX1302.modulation(p.modulation)
-                elif key == "bandwidth":
-                    return SX1302.bandwidth(p.bandwidth)
-                elif key == "datarate":
-                    return SX1302.datarate(p.datarate)
-                elif key == "coderate":
-                    return SX1302.coderate(p.coderate)
-                else:
-                    return getattr(p, key)
-
         nb_pkt = lgw_receive(self.NB_PKT_MAX, self.__rxpkts)
         if nb_pkt == LGW_HAL_ERROR:
             raise Exception("ERROR: lgw_receive failed")
         for i in range(nb_pkt):
-            yield wrapper(self.__rxpkts[i])
+            yield RxPacket(self.__rxpkts[i])
 
 %}

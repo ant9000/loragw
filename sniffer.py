@@ -58,14 +58,18 @@ modem.start()
 while running:
     for pkt in modem.receive():
         print(
-            "received packet: count μs %u, status %s, size %u, modulation %s, BW %s, DR %s, CR %s, channel RSSI %.1f" % (
-             pkt.count_us, pkt.status, pkt.size, pkt.modulation, pkt.bandwidth, pkt.datarate, pkt.coderate, pkt.rssic))
+            "received packet: count μs %u, status %s, size %u, modulation %s, channel RSSI %.1f" % (
+             pkt.count_us, pkt.status, pkt.size, pkt.modulation, pkt.rssic))
         print(
             "\tchannel %1u, rf chain: %1u, freq: %.6lf, modem id: %d" % (
             pkt.if_chain, pkt.rf_chain, pkt.freq_hz / 1e6, pkt.modem_id))
-        print(
-            "\tsignal RSSI %.0f, LoRa SNR: %.1f, freq offset: %d" % (
-            round(pkt.rssis), pkt.snr, pkt.freq_offset))
+        if pkt.modulation == "LORA":
+            print(
+                "\tDR SF%d, BW %s, CR %s, signal RSSI %.0f, LoRa SNR: %.1f, freq offset: %d" % (
+                pkt.datarate, pkt.bandwidth, pkt.coderate, round(pkt.rssis), pkt.snr, pkt.freq_offset))
+        elif pkt.modulation == "FSK":
+            print("\tdatarate %d" % pkt.datarate)
+
         print("\tpayload: ", pkt.payload)
     else:
         time.sleep(0.001 * FETCH_SLEEP_MS)
