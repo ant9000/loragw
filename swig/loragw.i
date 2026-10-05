@@ -290,7 +290,7 @@ class SX1302:
                         for j in range(self.tx_lut[i].size):
                             l = lgw_tx_gain_s()
                             if j >= TX_GAIN_LUT_SIZE_MAX:
-                                self.debug_print("ERROR: TX Gain LUT [%u] index %d not supported, skip it" % (i, j)) 
+                                self.debug_print("ERROR: TX Gain LUT [%u] index %d not supported, skip it" % (i, j))
                                 self.tx_lut[i].size = TX_GAIN_LUT_SIZE_MAX
                                 break
                             rf_power = tx_gain_lut[i].get("rf_power", None)
@@ -370,7 +370,7 @@ class SX1302:
             if res != LGW_HAL_SUCCESS:
                 raise Exception("ERROR: invalid configuration for demodulation parameters")
 
-        # Lora multi-SF channels configuration (bandwidth cannot be set)
+        # LoRa multi-SF channels configuration (bandwidth cannot be set)
         for i in range(LGW_MULTI_NB):
             chan_cfg = cfg.get("chan_multiSF_%d" % i, None)
             if chan_cfg is None:
@@ -381,13 +381,103 @@ class SX1302:
             if not ifconf.enable:
                 self.debug_print("INFO: Lora multi-SF channel %i disabled" % i)
             else:
-                ifconf.rf_chain = chan_cfg["radio"]
-                ifconf.freq_hz = chan_cfg["if"]
+                radio = chan_cfg.get("radio", 0)
+                ifconf.rf_chain = type(radio) == int and radio or 0
+                freq_hz = chan_cfg.get("if", 0)
+                ifconf.freq_hz = type(freq_hz) == int and freq_hz or 0
                 self.debug_print("INFO: Lora multi-SF channel %i>  radio %i, IF %i Hz, 125 kHz bw, SF 5 to 12" % (
                     i, ifconf.rf_chain, ifconf.freq_hz))
             res = lgw_rxif_setconf(i, ifconf)
             if res != LGW_HAL_SUCCESS:
                 raise Exception("ERROR: invalid configuration for Lora multi-SF channel %i" % i)
+
+        # LoRa standard channel configuration
+        chan_cfg = cfg.get("chan_Lora_std", None)
+        if chan_cfg is None:
+            print("INFO: no configuration for Lora standard channel")
+        else:
+            ifconf = lgw_conf_rxif_s()
+            ifconf.enable = chan_cfg.get("enable", False)
+            if not ifconf.enable:
+                self.debug_print("INFO: Lora standard channel disabled")
+            else:
+                radio = chan_cfg.get("radio", 0)
+                ifconf.rf_chain = type(radio) == int and radio or 0
+                freq_hz = chan_cfg.get("if", 0)
+                ifconf.freq_hz = type(freq_hz) == int and freq_hz or 0
+                bw = chan_cfg.get("bandwidth", 0)
+                if type(bw) != int:
+                    bw = 0
+                ifconf.bandwidth = {500000: BW_500KHZ, 250000: BW_250KHZ, 125000: BW_125KHZ}.get(bw, BW_UNDEFINED)
+                sf = chan_cfg.get("spread_factor", 0)
+                if type(sf) != int:
+                    sf = 0
+                if 5 <= sf <= 12:
+                    ifconf.datarate = sf
+                else:
+                    ifconf.datarate = DR_UNDEFINED
+                ifconf.implicit_hdr = chan_cfg.get("implicit_hdr", False) and True or False
+                if ifconf.implicit_hdr:
+                    implicit_payload_length = chan_cfg.get("implicit_payload_length", None)
+                    if type(implicit_payload_length) == int:
+                        ifconf.implicit_payload_length = implicit_payload_length & 0xFF
+                    else:
+                        raise Exception("ERROR: payload length setting is mandatory for implicit header mode")
+                    implicit_crc_en = chan_cfg.get("implicit_crc_en", None)
+                    if implicit_crc_en in (True, False):
+                        ifconf.implicit_crc_en = implicit_crc_en
+                    else:
+                        raise Exception("ERROR: CRC enable setting is mandatory for implicit header mode")
+                    implicit_coderate = chan_cfg.get("implicit_coderate", None)
+                    if type(implicit_coderate) == int:
+                        ifconfig.implicit_coderate = implicit_coderate % 0xFF
+                    else:
+                        raise Exception("ERROR: coding rate setting is mandatory for implicit header mode")
+                self.debug_print("INFO: Lora std channel> radio %i, IF %i Hz, %u Hz bw, SF %u, %s" % (
+                    ifconf.rf_chain, ifconf.freq_hz, bw, sf, ifconf.implicit_hdr and "Implicit header" or "Explicit header"))
+            res = lgw_rxif_setconf(8, ifconf)
+            if res != LGW_HAL_SUCCESS:
+                raise Exception("ERROR: invalid configuration for Lora standard channel")
+
+        # FSK channel configuration
+        chan_cfg = cfg.get("chan_FSK", None)
+        if chan_cfg is None:
+            print("INFO: no configuration for FSK channel")
+        else:
+            ifconf = lgw_conf_rxif_s()
+            ifconf.enable = chan_cfg.get("enable", False)
+            if not ifconf.enable:
+                self.debug_print("INFO: FSK channel disabled")
+            else:
+                radio = chan_cfg.get("radio", 0)
+                ifconf.rf_chain = type(radio) == int and radio or 0
+                freq_hz = chan_cfg.get("if", 0)
+                ifconf.freq_hz = type(freq_hz) == int and freq_hz or 0
+                bw = chan_cfg.get("bandwidth", 0)
+                if type(bw) != int:
+                    bw = 0
+                fdev = chan_cfg.get("freq_deviation", 0)
+                if type(fdev) != int:
+                    fdev = 0
+                dr = chan_cfg.get("datarate", 0)
+                ifconf.datarate = type(dr) == int and dr or 0
+                if bw == 0 and fdev != 0:
+                    bw = 2 * fdev + ifconf.datarate
+                if bw == 0:
+                    ifconf.bandwidth = BW_UNDEFINED
+                elif bw <= 125000:
+                    ifconf.bandwidth = BW_125KHZ
+                elif bw <= 250000:
+                    ifconf.bandwidth = BW_250KHZ
+                elif bw <= 500000:
+                    ifconf.bandwidth = BW_500KHZ
+                else:
+                    ifconf.bandwidth = BW_UNDEFINED
+                self.debug_print("INFO: FSK channel> radio %i, IF %i Hz, %u Hz bw, %u bps datarate" % (
+                    ifconf.rf_chain, ifconf.freq_hz, bw, ifconf.datarate))
+            res = lgw_rxif_setconf(9, ifconf)
+            if res != LGW_HAL_SUCCESS:
+                raise Exception("ERROR: invalid configuration for FSK channel")
 
     def start(self):
         if self.reset_pin and self.power_pin:
