@@ -1,5 +1,5 @@
 import time, signal
-from loragw import SX1302
+from loragw import *
 
 SX1302_RESET_PIN=4      # SX1302 reset
 SX1302_POWER_EN_PIN=17  # SX1302 power enable
@@ -79,22 +79,34 @@ signal.signal(signal.SIGTERM, signal_handler)
 modem = SX1302(json_cfg, debug=True, reset_pin=SX1302_RESET_PIN, power_pin=SX1302_POWER_EN_PIN)
 modem.start()
 
+def decode(key, val):
+    if key == "status":
+        return {STAT_NO_CRC: "NO CRC", STAT_CRC_BAD: "BAD CRC", STAT_CRC_OK: "CRC OK"}.get(val, "UNDEF")
+    elif key == "modulation":
+        return {MOD_CW: "CW", MOD_LORA: "LORA", MOD_FSK: "FSK"}.get(val, "UNDEF")
+    elif key == "bandwidth":
+        return {BW_500KHZ: "500kHz", BW_250KHZ: "250kHz", BW_125KHZ: "125kHz"}.get(val, "UNDEF")
+    elif key == "coderate":
+        return "4/%d" % (val + 4)
+
 while running:
     for pkt in modem.receive():
         print(
             "received packet: count μs %u, status %s, size %u, modulation %s, channel RSSI %.1f" % (
-             pkt.count_us, pkt.status, pkt.size, pkt.modulation, pkt.rssic))
+             pkt.count_us, pkt.status, pkt.size, decode("modulation", pkt.modulation), pkt.rssic))
         print(
             "\tchannel %1u, rf chain: %1u, freq: %.6lf, modem id: %d" % (
             pkt.if_chain, pkt.rf_chain, pkt.freq_hz / 1e6, pkt.modem_id))
-        if pkt.modulation == "LORA":
+        if pkt.modulation == MOD_LORA:
             print(
                 "\tDR SF%d, BW %s, CR %s, signal RSSI %.0f, LoRa SNR: %.1f, freq offset: %d" % (
-                pkt.datarate, pkt.bandwidth, pkt.coderate, round(pkt.rssis), pkt.snr, pkt.freq_offset))
-        elif pkt.modulation == "FSK":
+                pkt.datarate, decode("bandwidth", pkt.bandwidth), decode("coderate", pkt.coderate),
+                round(pkt.rssis), pkt.snr, pkt.freq_offset))
+        elif pkt.modulation == MOD_FSK:
             print("\tdatarate %d" % pkt.datarate)
 
         print("\tpayload: ", pkt.payload)
+
     else:
         time.sleep(0.001 * FETCH_SLEEP_MS)
         continue

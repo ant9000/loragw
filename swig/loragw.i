@@ -20,6 +20,7 @@ typedef enum com_type_e {
 } lgw_com_type_t;
 
 int lgw_get_eui(uint64_t * OUTPUT);
+int lgw_status(uint8_t rf_chain, uint8_t select, uint8_t * OUTPUT);
 
 %include "libloragw/include/loragw_hal.h"
 
@@ -46,6 +47,7 @@ int lgw_get_eui(uint64_t * OUTPUT);
 import json, re, time
 import gpiod
 from gpiod.line import Direction, Value
+from threading import Thread, Lock
 %}
 
 %pythoncode %{
@@ -53,22 +55,37 @@ from gpiod.line import Direction, Value
 class RxPacket:
     def __init__(self, rxpkt):
         self.__dict__["__rxpkt"] = rxpkt
-    def __getattribute__(self, key):
-        if key == "__dict__":
-            return super().__getattribute__(key)
+
+    def __getattr__(self, key):
         p = self.__dict__["__rxpkt"]
         if key == "payload":
             return cdata(p.payload, p.size)
-        elif key == "status":
-            return {STAT_NO_CRC: "NO CRC", STAT_CRC_BAD: "BAD CRC", STAT_CRC_OK: "CRC OK"}.get(p.status, "UNDEF")
-        elif key == "modulation":
-            return {MOD_CW: "CW", MOD_LORA: "LORA", MOD_FSK: "FSK"}.get(p.modulation, "UNDEF")
-        elif key == "bandwidth":
-            return {BW_500KHZ: "500kHz", BW_250KHZ: "250kHz", BW_125KHZ: "125kHz"}.get(p.bandwidth, "UNDEF")
-        elif key == "coderate":
-            return "4/%d" % (p.coderate + 4)
         else:
             return getattr(p, key)
+
+class TxPacket:
+    def __init__(self):
+        self.__dict__["__txpkt"] = lgw_pkt_tx_s()
+
+    def __getattribute__(self, key):
+        if key == "__dict__":
+            return super().__getattribute__("__dict__")
+        p = self.__dict__["__txpkt"]
+        if key == "packet":
+            return p
+        elif key == "payload":
+            return cdata(p.payload, p.size)
+        else:
+            return getattr(p, key)
+
+    def __setattr__(self, key, value):
+        p = self.__dict__["__txpkt"]
+        if key == "payload":
+            value = value[:256]
+            memmove(p.payload, value)
+            p.size = len(value)
+        else:
+            setattr(p, key, value)
 
 class SX1302:
     NB_PKT_MAX = 255
@@ -92,6 +109,7 @@ class SX1302:
                 }
             )
         self.__rxpkts = lgw_pkt_rx_array_new(self.NB_PKT_MAX)
+        self.lock = Lock()
 
     def debug_print(self, message):
         if self.debug:
@@ -487,26 +505,79 @@ class SX1302:
             self.lines.set_value(self.reset_pin, Value.INACTIVE)
             time.sleep(0.1)
 
-        res = lgw_start()
+        with self.lock:
+            res = lgw_start()
         if res != LGW_HAL_SUCCESS:
             raise Exception("ERROR: lgw_start returned %d" % res)
 
-        res, eui = lgw_get_eui()
+        with self.lock:
+            res, eui = lgw_get_eui()
         if res != LGW_HAL_SUCCESS:
             raise Exception("ERROR: lgw_start returned %d" % res)
         self.eui = eui
         self.debug_print("EUI: 0x%016x" % eui)
 
     def stop(self):
-        res = lgw_stop()
+        with self.lock:
+            res = lgw_stop()
         if res != LGW_HAL_SUCCESS:
             raise Exception("ERROR: lgw_stop returned %d" % res)
 
     def receive(self):
-        nb_pkt = lgw_receive(self.NB_PKT_MAX, self.__rxpkts)
+        with self.lock:
+            nb_pkt = lgw_receive(self.NB_PKT_MAX, self.__rxpkts)
         if nb_pkt == LGW_HAL_ERROR:
             raise Exception("ERROR: lgw_receive failed")
         for i in range(nb_pkt):
             yield RxPacket(self.__rxpkts[i])
 
+    def send(self, txpkt):
+        if type(txpkt) != TxPacket:
+            raise Exception("ERROR: TxPacket needed, %s provided" % type(txpkt))
+        
+        i = txpkt.rf_chain
+        if not self.tx_enable[i]:
+            raise Exception("ERROR: TX is not enabled on RF chain %u" % i)
+
+        txpkt.rf_power -= self.antenna_gain
+
+        # TODO: validate that all packet data is consistent
+        if len(txpkt.payload) == 0:
+            raise Exception("ERROR: no payload to send")
+
+        # check TX frequency
+        if txpkt.freq_hz < self.tx_freq_min[i] or txpkt.freq_hz > self.tx_freq_max[i]:
+            self.debug_print("ERROR: Packet REJECTED, unsupported frequency - %u (min:%u,max:%u)" % (
+                txpkt.freq_hz, self.tx_freq_min[i], self.tx_freq_max[i]))
+
+        # check power
+        lut = self.tx_lut[i].lut
+        current_best_index = -1
+        current_best_match = 0xFF
+        for j in range(self.tx_lut[i].size):
+            l = lgw_tx_gain_s_array_getitem(lut, j)
+            diff = txpkt.rf_power - l.rf_power
+            if diff < 0:
+                continue
+            if current_best_index == -1 or diff < current_best_match:
+                current_best_match = diff
+                current_best_index = j
+        l = lgw_tx_gain_s_array_getitem(lut, current_best_index > -1 and current_best_index or 0)
+        if l.rf_power != txpkt.rf_power:
+            self.debug_print("WARNING: Requested TX power is not supported (%ddBm), actual power used: %ddBm" % (txpkt.rf_power, l.rf_power))
+            txpkt.rf_power = l.rf_power
+
+        # check radio availability
+        with self.lock:
+            res, status = lgw_status(i, TX_STATUS)
+        if res != LGW_HAL_SUCCESS:
+            raise Exception("ERROR: lgw_status returned %d" % res)
+        if status == TX_EMITTING:
+            raise Exception("ERROR: modem is busy transmitting")
+
+        with self.lock:
+            res = lgw_send(txpkt.packet)
+
+        if res != LGW_HAL_SUCCESS:
+            raise Exception("ERROR: lgw_send returned %d" % res)
 %}
