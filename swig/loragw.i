@@ -111,6 +111,10 @@ class SX1302:
         self.__rxpkts = lgw_pkt_rx_array_new(self.NB_PKT_MAX)
         self.lock = Lock()
 
+    def __del__(self):
+        if self.power_pin:
+            self.lines.set_value(self.power_pin, Value.INACTIVE)
+
     def debug_print(self, message):
         if self.debug:
             print(message)
