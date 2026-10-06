@@ -14,5 +14,5 @@ Beware - this is still a WIP.
 Tested on Debian 13:
 
 ```
-sudo apt install build-essentials python3-dev python3-libgpiod swig
+sudo apt install build-essential python3-dev python3-libgpiod swig
 ```
