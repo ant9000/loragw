@@ -5,6 +5,7 @@ SX1302_RESET_PIN=4      # SX1302 reset
 SX1302_POWER_EN_PIN=17  # SX1302 power enable
 
 FETCH_SLEEP_MS = 10
+REPLY_TO_PINGS = True
 
 json_cfg = """
 {
@@ -106,6 +107,15 @@ while running:
             print("\tdatarate %d" % pkt.datarate)
 
         print("\tpayload: ", pkt.payload)
+
+        if REPLY_TO_PINGS:
+            if pkt.payload[:4] == b'PING':
+                ans = TxPacket()
+                for key in ["freq_hz", "modulation", "bandwidth", "datarate", "coderate"]:
+                    setattr(ans, key, getattr(pkt, key))
+                ans.rf_power = 14
+                ans.payload = b'PONG: ' + pkt.payload
+                modem.send(ans)
 
     else:
         time.sleep(0.001 * FETCH_SLEEP_MS)
