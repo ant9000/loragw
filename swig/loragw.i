@@ -311,32 +311,32 @@ class SX1302:
                                 self.debug_print("ERROR: TX Gain LUT [%u] index %d not supported, skip it" % (i, j))
                                 self.tx_lut[i].size = TX_GAIN_LUT_SIZE_MAX
                                 break
-                            rf_power = tx_gain_lut[i].get("rf_power", None)
+                            rf_power = tx_gain_lut[j].get("rf_power", None)
                             if type(rf_power) == int:
                                 l.rf_power = rf_power & 0xFF
                             else:
                                 self.debug_print("WARNING: Data type for %s[%d] seems wrong, please check" % ("rf_power", j))
                                 l.rf_power = 0
-                            pa_gain = tx_gain_lut[i].get("pa_gain", None)
+                            pa_gain = tx_gain_lut[j].get("pa_gain", None)
                             if type(pa_gain) == int:
                                 l.pa_gain = pa_gain & 0xFF
                             else:
                                 self.debug_print("WARNING: Data type for %s[%d] seems wrong, please check" % ("pa_gain", j))
                                 l.pa_gain = 0
                             if not sx1250_tx_lut:
-                                dig_gain = tx_gain_lut[i].get("dig_gain", None)
+                                dig_gain = tx_gain_lut[j].get("dig_gain", None)
                                 if type(dig_gain) == int:
                                     l.dig_gain = dig_gain & 0xFF
                                 else:
                                     self.debug_print("WARNING: Data type for %s[%d] seems wrong, please check" % ("dig_gain", j))
-                                    self.tx_lut[i].l.dig_gain = 0
-                                dac_gain = tx_gain_lut[i].get("dac_gain", None)
+                                    l.dig_gain = 0
+                                dac_gain = tx_gain_lut[j].get("dac_gain", None)
                                 if type(dac_gain) == int:
                                     l.dac_gain = dac_gain & 0xFF
                                 else:
                                     self.debug_print("WARNING: Data type for %s[%d] seems wrong, please check" % ("dac_gain", j))
                                     l.dac_gain = 0
-                                mix_gain = tx_gain_lut[i].get("mix_gain", None)
+                                mix_gain = tx_gain_lut[j].get("mix_gain", None)
                                 if type(mix_gain) == int:
                                     l.mix_gain = mix_gain & 0xFF
                                 else:
@@ -344,7 +344,7 @@ class SX1302:
                                     l.mix_gain = 0
                             else:
                                 l.mix_gain = 5
-                                pwr_idx = tx_gain_lut[i].get("pwr_idx", None)
+                                pwr_idx = tx_gain_lut[j].get("pwr_idx", None)
                                 if type(pwr_idx) == int:
                                     l.pwr_idx = pwr_idx & 0xFF
                                 else:
