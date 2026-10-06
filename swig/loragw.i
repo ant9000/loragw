@@ -46,8 +46,7 @@ int lgw_status(uint8_t rf_chain, uint8_t select, uint8_t * OUTPUT);
 %pythonbegin %{
 import json, re, time
 import gpiod
-from gpiod.line import Direction, Value
-from threading import Thread, Lock
+from threading import Lock
 %}
 
 %pythoncode %{
@@ -87,33 +86,50 @@ class TxPacket:
         else:
             setattr(p, key, value)
 
+class OutputPin:
+    def __init__(self, pin):
+        self._pin = pin
+
+        if hasattr(gpiod, 'request_lines'):
+            self._line = gpiod.request_lines(
+                "/dev/gpiochip0", consumer='output_pin',
+                config={pin: gpiod.LineSettings(direction=gpiod.line.Direction.OUTPUT, output_value=gpiod.line.Value.INACTIVE)})
+        else:
+            self._chip = gpiod.Chip("gpiochip0")
+            self._line = self._chip.get_lines([pin])
+            self._line.request(consumer='output_pin', type=gpiod.LINE_REQ_DIR_OUT)
+
+    def set(self):
+        if hasattr(self._line, 'set_value'):
+            self._line.set_value(self._pin, gpiod.line.Value.ACTIVE)
+        else:
+            self._line.set_values([1])
+
+    def clear(self):
+        if hasattr(self._line, 'set_value'):
+            self._line.set_value(self._pin, gpiod.line.Value.INACTIVE)
+        else:
+            self._line.set_values([0])
+
 class SX1302:
     NB_PKT_MAX = 255
     def __init__(self, json_cfg, debug=False, reset_pin=None, power_pin=None):
         self.debug = debug
         self.load_config(json_cfg)
-        self.reset_pin = reset_pin
-        self.power_pin = power_pin
-        self.lines = None
-        if reset_pin and power_pin:
-            self.lines = gpiod.request_lines(
-                "/dev/gpiochip0",
-                consumer='loragw_spi',
-                config={
-                    reset_pin: gpiod.LineSettings(
-                        direction=Direction.OUTPUT, output_value=Value.INACTIVE
-                    ),
-                    power_pin: gpiod.LineSettings(
-                        direction=Direction.OUTPUT, output_value=Value.INACTIVE
-                    ),
-                }
-            )
+        if type(reset_pin) == int:
+            self.reset_pin = OutputPin(reset_pin)
+        else:
+            self.reset_pin = None
+        if type(power_pin) == int:
+            self.power_pin = OutputPin(power_pin)
+        else:
+            self.power_pin = None
         self.__rxpkts = lgw_pkt_rx_array_new(self.NB_PKT_MAX)
         self.lock = Lock()
 
     def __del__(self):
         if self.power_pin:
-            self.lines.set_value(self.power_pin, Value.INACTIVE)
+            self.power_pin.clear()
 
     def debug_print(self, message):
         if self.debug:
@@ -502,11 +518,13 @@ class SX1302:
                 raise Exception("ERROR: invalid configuration for FSK channel")
 
     def start(self):
-        if self.reset_pin and self.power_pin:
-            self.lines.set_value(self.power_pin, Value.ACTIVE)
-            self.lines.set_value(self.reset_pin, Value.ACTIVE)
+        if self.power_pin:
+            self.power_pin.set()
             time.sleep(0.1)
-            self.lines.set_value(self.reset_pin, Value.INACTIVE)
+        if self.reset_pin:
+            self.reset_pin.set()
+            time.sleep(0.1)
+            self.reset_pin.clear()
             time.sleep(0.1)
 
         with self.lock:

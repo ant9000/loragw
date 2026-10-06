@@ -11,7 +11,7 @@ Beware - this is still a WIP.
 
 # Dependencies #
 
-Tested on Debian 13:
+Tested on Debian 12 and 13:
 
 ```
 sudo apt install build-essential python3-dev python3-libgpiod swig

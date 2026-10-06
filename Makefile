@@ -29,7 +29,7 @@ libloragw/lib/libloragw.a: sx1302_hal/libloragw/libloragw.a
 	perl -i -pe 's/static LGW_SPECTRAL_SCAN_RESULT_SIZE/LGW_SPECTRAL_SCAN_RESULT_SIZE/g' libloragw/include/loragw_hal.h
 
 _loragw.so: libloragw/lib/libloragw.a swig/loragw.i
-	$(SWIG) -std=c99 -python -outdir . swig/loragw.i
+	$(SWIG) -python -outdir . swig/loragw.i
 	$(CC) $(CFLAGS) $(INCLUDES) -c swig/loragw_wrap.c -o swig/loragw_wrap.o
 	$(CC) $(LDFLAGS) -shared swig/loragw_wrap.o $(LIBS) -o _loragw.so
 
