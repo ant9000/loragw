@@ -1,4 +1,5 @@
 import time, signal
+from datetime import datetime
 from loragw import *
 
 SX1302_RESET_PIN=4      # SX1302 reset
@@ -92,9 +93,10 @@ def decode(key, val):
 
 while running:
     for pkt in modem.receive():
+        tstamp = datetime.now().strftime("%X.%f")
         print(
-            "received packet: count μs %u, status %s, size %u, modulation %s, channel RSSI %.1f" % (
-             pkt.count_us, pkt.status, pkt.size, decode("modulation", pkt.modulation), pkt.rssic))
+            "[%s] received packet: count μs %u, status %s, size %u, modulation %s, channel RSSI %.1f" % (
+             tstamp, pkt.count_us, pkt.status, pkt.size, decode("modulation", pkt.modulation), pkt.rssic))
         print(
             "\tchannel %1u, rf chain: %1u, freq: %.6lf, modem id: %d" % (
             pkt.if_chain, pkt.rf_chain, pkt.freq_hz / 1e6, pkt.modem_id))
