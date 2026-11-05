@@ -115,7 +115,6 @@ class SX1302:
     NB_PKT_MAX = 255
     def __init__(self, json_cfg, debug=False, reset_pin=None, power_pin=None):
         self.debug = debug
-        self.load_config(json_cfg)
         if type(reset_pin) == int:
             self.reset_pin = OutputPin(reset_pin)
         else:
@@ -124,6 +123,7 @@ class SX1302:
             self.power_pin = OutputPin(power_pin)
         else:
             self.power_pin = None
+        self.load_config(json_cfg)
         self.__rxpkts = lgw_pkt_rx_array_new(self.NB_PKT_MAX)
         self.lock = Lock()
 
