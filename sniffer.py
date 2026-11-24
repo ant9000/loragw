@@ -15,7 +15,35 @@ json_cfg = """
         "com_path": "/dev/spidev0.0",
         "lorawan_public": false,
         "clksrc": 0,
+        "antenna_gain": 0,
         "full_duplex": false,
+        "sx1261_conf": {
+            "spi_path": "/dev/spidev0.1",
+            "rssi_offset": 0,
+            "spectral_scan": {
+                "enable": true,
+                "freq_start": 867100000,
+                "nb_chan": 8,
+                "nb_scan": 2000,
+                "pace_s": 10
+            },
+            "lbt": {
+                "enable": false,
+                "rssi_target": -70,
+                "channels":[
+                    { "freq_hz": 867100000, "bandwidth": 125000, "scan_time_us": 128,  "transmit_time_ms": 400 },
+                    { "freq_hz": 867300000, "bandwidth": 125000, "scan_time_us": 128,  "transmit_time_ms": 400 },
+                    { "freq_hz": 867500000, "bandwidth": 125000, "scan_time_us": 128,  "transmit_time_ms": 400 },
+                    { "freq_hz": 867700000, "bandwidth": 125000, "scan_time_us": 128,  "transmit_time_ms": 400 },
+                    { "freq_hz": 867900000, "bandwidth": 125000, "scan_time_us": 128,  "transmit_time_ms": 400 },
+                    { "freq_hz": 868100000, "bandwidth": 125000, "scan_time_us": 128,  "transmit_time_ms": 400 },
+                    { "freq_hz": 868300000, "bandwidth": 125000, "scan_time_us": 128,  "transmit_time_ms": 400 },
+                    { "freq_hz": 868500000, "bandwidth": 125000, "scan_time_us": 128,  "transmit_time_ms": 400 },
+                    { "freq_hz": 869525000, "bandwidth": 125000, "scan_time_us": 5000, "transmit_time_ms": 4000 },
+                    { "freq_hz": 868300000, "bandwidth": 250000, "scan_time_us": 128,  "transmit_time_ms": 400 }
+                ]
+            }
+        },
         "radio_0": {
             "enable": true,
             "type": "SX1250",

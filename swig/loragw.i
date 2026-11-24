@@ -111,6 +111,14 @@ class OutputPin:
         else:
             self._line.set_values([0])
 
+class SpectralScanParams:
+    def __init__(self, enable=False, freq_hz_start=0, nb_chan=0, nb_scan=0, pace_s=10):
+        self.enable = enable
+        self.freq_hz_start = freq_hz_start
+        self.nb_chan = nb_chan
+        self.nb_scan = nb_scan
+        self.pace_s = pace_s
+
 class SX1302:
     NB_PKT_MAX = 255
     def __init__(self, json_cfg, debug=False, reset_pin=None, power_pin=None):
@@ -248,19 +256,113 @@ class SX1302:
             ss_cfg = sx1261_cfg.get("spectral_scan", None)
             if ss_cfg is None:
                 self.debug_print("INFO: no configuration for Spectral Scan")
+                self.spectral_scan_params = None
             else:
-                # TODO
-                self.debug_print("TODO: process configuration for Spectral Scan - disabling for now")
-                sx1261conf.enable = False
+                enable = ss_cfg.get("enable", None)
+                if enable in (True, False):
+                    sx1261conf.enable = enable
+                else:
+                    self.debug_print("WARNING: Data type for spectral_scan.enable seems wrong, please check")
+                    sx1261conf.enable = False
+                if sx1261conf.enable:
+                    self.debug_print("INFO: Spectral Scan with SX1261 is enabled")
+                    spectral_scan_params = SpectralScanParams()
+                    val = ss_cfg.get("freq_start", None)
+                    if type(val) == int:
+                        spectral_scan_params.freq_start_hz = val & 0xFFFFFFFF
+                    else:
+                        self.debug_print("WARNING: Data type for spectral_scan.freq_start seems wrong, please check")
+                    val = ss_cfg.get("nb_chan", None)
+                    if type(val) == int:
+                        spectral_scan_params.nb_chan = val & 0xFF
+                    else:
+                        self.debug_print("WARNING: Data type for spectral_scan.nb_chan seems wrong, please check")
+                    val = ss_cfg.get("nb_scan", None)
+                    if type(val) == int:
+                        spectral_scan_params.nb_scan = val & 0xFFFF
+                    else:
+                        self.debug_print("WARNING: Data type for spectral_scan.nb_scan seems wrong, please check")
+                    val = ss_cfg.get("pace_s", None)
+                    if type(val) == int:
+                        spectral_scan_params.pace_s = val & 0xFFFFFFFF
+                    else:
+                        self.debug_print("WARNING: Data type for spectral_scan.pace_s seems wrong, please check")
+                    self.spectral_scan_params = spectral_scan_params
 
             # listen before talk configuration
             lbt_cfg = sx1261_cfg.get("lbt", None)
             if lbt_cfg is None:
                 self.debug_print("INFO: no configuration for LBT")
             else:
-                # TODO
-                self.debug_print("TODO: process configuration for LBT - disabling for now")
-                sx1261conf.lbt_conf.enable = False
+                enable = lbt_cfg.get("enable", None)
+                if enable in (True, False):
+                    sx1261conf.lbt_conf.enable = enable
+                else:
+                    self.debug_print("WARNING: Data type for lbt.enable seems wrong, please check")
+                    sx1261conf.lbt_conf.enable = False
+                if sx1261conf.lbt_conf.enable:
+                    self.debug_print("TODO: Listen-Before-Talk with SX1261")
+#                   self.debug_print("INFO: Listen-Before-Talk with SX1261 is enabled")
+#                   val = lbt_cfg.get("rssi_target", None)
+#                   if type(val) == int:
+#                       sx1261conf.lbt_conf.rssi_target = val & 0xFF
+#                   else:
+#                       self.debug_print("WARNING: Data type for lbt.rssi_target seems wrong, please check")
+#                       sx1261conf.lbt_conf.rssi_target = 0
+#                   channels = lbt_cfg.get("channels", None)
+#                   if type(channels) == list:
+#                       sx1261conf.lbt_conf.nb_channel = len(channels)
+#                       self.debug_print("INFO: %d LBT channels configured" % sx1261conf.lbt_conf.nb_channel)
+#                   else:
+#                       sx1261conf.lbt_conf.nb_channel = 0
+#                   for i in range(sx1261conf.lbt_conf.nb_channel):
+#                       if i >= LGW_LBT_CHANNEL_NB_MAX:
+#                           self.debug_print("ERROR: LBT channel %d not supported, skip it" % i)
+#                           break
+#                       channel = channels[i]
+
+#                       val = channel.get("freq_hz", None)
+#                       if val is not None:
+#                           if type(val) == int:
+#                               sx1261conf.lbt_conf.channels[i].freq_hz = val & 0xFFFFFFFF
+#                           else:
+#                               self.debug_print("WARNING: Data type for lbt.channels[%d].freq_hz seems wrong, please check" % i)
+#                       else:
+#                           raise Exception("ERROR: no frequency defined for LBT channel %d" % i)
+
+#                       val = channel.get("bandwidth", None)
+#                       if val is not None:
+#                           if type(val) == int:
+#                               bw = val & 0xFFFFFFFF
+#                               sx1261conf.lbt_conf.channels[i].bandwidth = {500000: BW_500KHZ, 250000: BW_250KHZ, 125000: BW_125KHZ}.get(bw, BW_UNDEFINED)
+#                           else:
+#                               self.debug_print("WARNING: Data type for lbt.channels[%d].bandwidth seems wrong, please check" % i)
+#                               sx1261conf.lbt_conf.channels[i].bandwidth = BW_UNDEFINED
+#                       else:
+#                           raise Exception("ERROR: no bandwidth defined for LBT channel %d" % i)
+
+#                       val = channel.get("scan_time_us", None)
+#                       if val is not None:
+#                           if type(val) == int:
+#                               try:
+#                                   sx1261conf.lbt_conf.channels[i].scan_time_us = {128: LGW_LBT_SCAN_TIME_128_US, 5000: LGW_LBT_SCAN_TIME_5000_US}[val]
+#                               except KeyError:
+#                                   raise Exception("ERROR: scan time not supported for LBT channel %d, must be 128 or 5000" % i)
+#                           else:
+#                               self.debug_print("WARNING: Data type for lbt.channels[%d].scan_time_us seems wrong, please check" % i)
+#                               sx1261conf.lbt_conf.channels[i].scan_time_us = 0
+#                       else:
+#                           raise Exception("ERROR: no scan_time_us defined for LBT channel %d" % i)
+
+#                       val = channel.get("transmit_time_ms", None)
+#                       if val is not None:
+#                           if type(val) == int:
+#                               sx1261conf.lbt_conf.channels[i].transmit_time_ms = val & 0xFFFF
+#                           else:
+#                               self.debug_print("WARNING: Data type for lbt.channels[%d].transmit_time_ms seems wrong, please check" % i)
+#                               sx1261conf.lbt_conf.channels[i].transmit_time_ms = 0
+#                       else:
+#                           raise Exception("ERROR: no transmit_time_ms defined for LBT channel %d" % i)
 
             res = lgw_sx1261_setconf(sx1261conf)
             if res != LGW_HAL_SUCCESS:
@@ -390,7 +492,7 @@ class SX1302:
             self.debug_print("INFO: no configuration for LoRa multi-SF spreading factors enabling")
         else:
             demodconf = lgw_conf_demod_s()
-            demodconf.multisf_datarate = LGW_MULTI_SF_EN;
+            demodconf.multisf_datarate = LGW_MULTI_SF_EN
             sf_list = demod_cfg.get("spreading_factor_enable", None)
             if sf_list and len(sf_list) <= LGW_MULTI_NB:
                 for i, sf in enumerate(sf_list):
@@ -401,7 +503,7 @@ class SX1302:
                         demodconf.multisf_datarate = LGW_MULTI_SF_EN # enable all SFs
                         break
             else:
-                self.debug_print("WARNING: failed to parse chan_multiSF_All.spreading_factor_enable");
+                self.debug_print("WARNING: failed to parse chan_multiSF_All.spreading_factor_enable")
                 demodconf.multisf_datarate = LGW_MULTI_SF_EN # enable all SFs
 
             res = lgw_demod_setconf(demodconf)
@@ -556,7 +658,7 @@ class SX1302:
     def send(self, txpkt):
         if type(txpkt) != TxPacket:
             raise Exception("ERROR: TxPacket needed, %s provided" % type(txpkt))
-        
+
         i = txpkt.rf_chain
         if not self.tx_enable[i]:
             raise Exception("ERROR: TX is not enabled on RF chain %u" % i)
