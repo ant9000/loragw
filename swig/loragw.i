@@ -255,9 +255,9 @@ class SX1302:
 
             # spectral scan configuration
             ss_cfg = sx1261_cfg.get("spectral_scan", None)
+            self.spectral_scan_params = None
             if ss_cfg is None:
                 self.debug_print("INFO: no configuration for Spectral Scan")
-                self.spectral_scan_params = None
             else:
                 enable = ss_cfg.get("enable", None)
                 if enable in (True, False):
