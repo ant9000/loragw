@@ -28,7 +28,7 @@ json_cfg = """
                 "pace_s": 10
             },
             "lbt": {
-                "enable": false,
+                "enable": true,
                 "rssi_target": -70,
                 "channels":[
                     { "freq_hz": 867100000, "bandwidth": 125000, "scan_time_us": 128,  "transmit_time_ms": 400 },

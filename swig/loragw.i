@@ -41,6 +41,7 @@ int lgw_status(uint8_t rf_chain, uint8_t select, uint8_t * OUTPUT);
 %}
 
 %array_class(struct lgw_pkt_rx_s, lgw_pkt_rx_array);
+%array_functions(struct lgw_conf_chan_lbt_s, lgw_conf_chan_lbt_s_array);
 %array_functions(struct lgw_tx_gain_s, lgw_tx_gain_s_array);
 
 %pythonbegin %{
@@ -301,69 +302,72 @@ class SX1302:
                     self.debug_print("WARNING: Data type for lbt.enable seems wrong, please check")
                     sx1261conf.lbt_conf.enable = False
                 if sx1261conf.lbt_conf.enable:
-                    self.debug_print("TODO: Listen-Before-Talk with SX1261")
-#                   self.debug_print("INFO: Listen-Before-Talk with SX1261 is enabled")
-#                   val = lbt_cfg.get("rssi_target", None)
-#                   if type(val) == int:
-#                       sx1261conf.lbt_conf.rssi_target = val & 0xFF
-#                   else:
-#                       self.debug_print("WARNING: Data type for lbt.rssi_target seems wrong, please check")
-#                       sx1261conf.lbt_conf.rssi_target = 0
-#                   channels = lbt_cfg.get("channels", None)
-#                   if type(channels) == list:
-#                       sx1261conf.lbt_conf.nb_channel = len(channels)
-#                       self.debug_print("INFO: %d LBT channels configured" % sx1261conf.lbt_conf.nb_channel)
-#                   else:
-#                       sx1261conf.lbt_conf.nb_channel = 0
-#                   for i in range(sx1261conf.lbt_conf.nb_channel):
-#                       if i >= LGW_LBT_CHANNEL_NB_MAX:
-#                           self.debug_print("ERROR: LBT channel %d not supported, skip it" % i)
-#                           break
-#                       channel = channels[i]
+                    self.debug_print("INFO: Listen-Before-Talk with SX1261 is enabled")
+                    val = lbt_cfg.get("rssi_target", None)
+                    if type(val) == int and -128 <= val <= 127:
+                        sx1261conf.lbt_conf.rssi_target = val
+                    else:
+                        self.debug_print("WARNING: Data type for lbt.rssi_target seems wrong, please check")
+                        sx1261conf.lbt_conf.rssi_target = 0
+                    channels = lbt_cfg.get("channels", None)
+                    if type(channels) == list:
+                        sx1261conf.lbt_conf.nb_channel = len(channels)
+                        self.debug_print("INFO: %d LBT channels configured" % sx1261conf.lbt_conf.nb_channel)
+                    else:
+                        sx1261conf.lbt_conf.nb_channel = 0
 
-#                       val = channel.get("freq_hz", None)
-#                       if val is not None:
-#                           if type(val) == int:
-#                               sx1261conf.lbt_conf.channels[i].freq_hz = val & 0xFFFFFFFF
-#                           else:
-#                               self.debug_print("WARNING: Data type for lbt.channels[%d].freq_hz seems wrong, please check" % i)
-#                       else:
-#                           raise Exception("ERROR: no frequency defined for LBT channel %d" % i)
+                    lbt = new_lgw_conf_chan_lbt_s_array(LGW_LBT_CHANNEL_NB_MAX)
+                    for i in range(sx1261conf.lbt_conf.nb_channel):
+                        if i >= LGW_LBT_CHANNEL_NB_MAX:
+                            self.debug_print("ERROR: LBT channel %d not supported, skip it" % i)
+                            break
+                        channel = channels[i]
+                        lbt_chan = lgw_conf_chan_lbt_s()
+                        val = channel.get("freq_hz", None)
+                        if val is not None:
+                            if type(val) == int:
+                                lbt_chan.freq_hz = val & 0xFFFFFFFF
+                            else:
+                                self.debug_print("WARNING: Data type for lbt.channels[%d].freq_hz seems wrong, please check" % i)
+                        else:
+                            raise Exception("ERROR: no frequency defined for LBT channel %d" % i)
 
-#                       val = channel.get("bandwidth", None)
-#                       if val is not None:
-#                           if type(val) == int:
-#                               bw = val & 0xFFFFFFFF
-#                               sx1261conf.lbt_conf.channels[i].bandwidth = {500000: BW_500KHZ, 250000: BW_250KHZ, 125000: BW_125KHZ}.get(bw, BW_UNDEFINED)
-#                           else:
-#                               self.debug_print("WARNING: Data type for lbt.channels[%d].bandwidth seems wrong, please check" % i)
-#                               sx1261conf.lbt_conf.channels[i].bandwidth = BW_UNDEFINED
-#                       else:
-#                           raise Exception("ERROR: no bandwidth defined for LBT channel %d" % i)
+                        val = channel.get("bandwidth", None)
+                        if val is not None:
+                            if type(val) == int:
+                                bw = val & 0xFFFFFFFF
+                                lbt_chan.bandwidth = {500000: BW_500KHZ, 250000: BW_250KHZ, 125000: BW_125KHZ}.get(bw, BW_UNDEFINED)
+                            else:
+                                self.debug_print("WARNING: Data type for lbt.channels[%d].bandwidth seems wrong, please check" % i)
+                                lbt_chan.bandwidth = BW_UNDEFINED
+                        else:
+                            raise Exception("ERROR: no bandwidth defined for LBT channel %d" % i)
 
-#                       val = channel.get("scan_time_us", None)
-#                       if val is not None:
-#                           if type(val) == int:
-#                               try:
-#                                   sx1261conf.lbt_conf.channels[i].scan_time_us = {128: LGW_LBT_SCAN_TIME_128_US, 5000: LGW_LBT_SCAN_TIME_5000_US}[val]
-#                               except KeyError:
-#                                   raise Exception("ERROR: scan time not supported for LBT channel %d, must be 128 or 5000" % i)
-#                           else:
-#                               self.debug_print("WARNING: Data type for lbt.channels[%d].scan_time_us seems wrong, please check" % i)
-#                               sx1261conf.lbt_conf.channels[i].scan_time_us = 0
-#                       else:
-#                           raise Exception("ERROR: no scan_time_us defined for LBT channel %d" % i)
+                        val = channel.get("scan_time_us", None)
+                        if val is not None:
+                            if type(val) == int:
+                                try:
+                                    lbt_chan.scan_time_us = {128: LGW_LBT_SCAN_TIME_128_US, 5000: LGW_LBT_SCAN_TIME_5000_US}[val]
+                                except KeyError:
+                                    raise Exception("ERROR: scan time not supported for LBT channel %d, must be 128 or 5000" % i)
+                            else:
+                                self.debug_print("WARNING: Data type for lbt.channels[%d].scan_time_us seems wrong, please check" % i)
+                                lbt_chan.scan_time_us = 0
+                        else:
+                            raise Exception("ERROR: no scan_time_us defined for LBT channel %d" % i)
 
-#                       val = channel.get("transmit_time_ms", None)
-#                       if val is not None:
-#                           if type(val) == int:
-#                               sx1261conf.lbt_conf.channels[i].transmit_time_ms = val & 0xFFFF
-#                           else:
-#                               self.debug_print("WARNING: Data type for lbt.channels[%d].transmit_time_ms seems wrong, please check" % i)
-#                               sx1261conf.lbt_conf.channels[i].transmit_time_ms = 0
-#                       else:
-#                           raise Exception("ERROR: no transmit_time_ms defined for LBT channel %d" % i)
+                        val = channel.get("transmit_time_ms", None)
+                        if val is not None:
+                            if type(val) == int:
+                                lbt_chan.transmit_time_ms = val & 0xFFFF
+                            else:
+                                self.debug_print("WARNING: Data type for lbt.channels[%d].transmit_time_ms seems wrong, please check" % i)
+                                lbt_chan.transmit_time_ms = 0
+                        else:
+                            raise Exception("ERROR: no transmit_time_ms defined for LBT channel %d" % i)
 
+                        lgw_conf_chan_lbt_s_array_setitem(lbt, i, lbt_chan)
+                    sx1261conf.lbt_conf.channels = lbt
             res = lgw_sx1261_setconf(sx1261conf)
             if res != LGW_HAL_SUCCESS:
                 raise Exception("ERROR: Failed to configure the SX1261 radio")
