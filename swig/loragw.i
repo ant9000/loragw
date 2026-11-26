@@ -141,7 +141,7 @@ class SpectralScanParams:
 
 class SX1302:
     NB_PKT_MAX = 255
-    def __init__(self, json_cfg, debug=False, reset_pin=None, power_pin=None):
+    def __init__(self, json_cfg, debug=False, reset_pin=None, power_pin=None, sx126x_nreset_pin=None):
         self.debug = debug
         if type(reset_pin) == int:
             self.reset_pin = OutputPin(reset_pin)
@@ -151,13 +151,13 @@ class SX1302:
             self.power_pin = OutputPin(power_pin)
         else:
             self.power_pin = None
+        if type(sx126x_nreset_pin) == int:
+            self.sx126x_nreset_pin = OutputPin(sx126x_nreset_pin)
+        else:
+            self.sx126x_nreset_pin=None
         self.load_config(json_cfg)
         self.__rxpkts = lgw_pkt_rx_array_new(self.NB_PKT_MAX)
         self.lock = Lock()
-
-    def __del__(self):
-        if self.power_pin:
-            self.power_pin.clear()
 
     def debug_print(self, message, *args, **kwargs):
         if self.debug:
@@ -651,6 +651,11 @@ class SX1302:
             time.sleep(0.1)
             self.reset_pin.clear()
             time.sleep(0.1)
+        if self.sx126x_nreset_pin:
+            self.sx126x_nreset_pin.clear()
+            time.sleep(0.1)
+            self.sx126x_nreset_pin.set()
+            time.sleep(0.1)
 
         with self.lock:
             res = lgw_start()
@@ -669,6 +674,18 @@ class SX1302:
             res = lgw_stop()
         if res != LGW_HAL_SUCCESS:
             raise Exception("ERROR: lgw_stop returned %d" % res)
+        if self.sx126x_nreset_pin:
+            self.sx126x_nreset_pin.clear()
+            time.sleep(0.1)
+            self.sx126x_nreset_pin.set()
+            time.sleep(0.1)
+        if self.reset_pin:
+            self.reset_pin.set()
+            time.sleep(0.1)
+            self.reset_pin.clear()
+            time.sleep(0.1)
+        if self.power_pin:
+            self.power_pin.clear()
 
     def receive(self):
         with self.lock:

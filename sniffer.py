@@ -2,8 +2,9 @@ import time, signal, os
 from datetime import datetime
 from loragw import *
 
-SX1302_RESET_PIN=4      # SX1302 reset
-SX1302_POWER_EN_PIN=17  # SX1302 power enable
+SX1302_RESET_PIN=4       # SX1302 reset
+SX1302_POWER_EN_PIN=17   # SX1302 power enable
+SX126X_NRESET_PIN=None   # SX126X nreset
 
 FETCH_SLEEP_MS = 10
 REPLY_TO_PINGS = True
@@ -20,7 +21,7 @@ signal.signal(signal.SIGINT, signal_handler)
 signal.signal(signal.SIGHUP, signal_handler)
 signal.signal(signal.SIGTERM, signal_handler)
 
-modem = SX1302(json_cfg, debug=True, reset_pin=SX1302_RESET_PIN, power_pin=SX1302_POWER_EN_PIN)
+modem = SX1302(json_cfg, debug=True, reset_pin=SX1302_RESET_PIN, power_pin=SX1302_POWER_EN_PIN, sx126x_nreset_pin=SX126X_NRESET_PIN)
 scanner = modem.spectral_scan()
 modem.start()
 
