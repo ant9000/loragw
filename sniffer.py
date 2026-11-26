@@ -2,9 +2,10 @@ import time, signal, os
 from datetime import datetime
 from loragw import *
 
+# defaults are for Embit gateways or RaspberryPi3/4 with Embit cape and radio module
 SX1302_RESET_PIN=4       # SX1302 reset
 SX1302_POWER_EN_PIN=17   # SX1302 power enable
-SX126X_NRESET_PIN=None   # SX126X nreset
+SX126X_NRESET_PIN=12     # SX126X nreset
 
 FETCH_SLEEP_MS = 10
 REPLY_TO_PINGS = True
