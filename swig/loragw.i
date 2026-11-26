@@ -22,6 +22,9 @@ typedef enum com_type_e {
 int lgw_get_eui(uint64_t * OUTPUT);
 int lgw_status(uint8_t rf_chain, uint8_t select, uint8_t * OUTPUT);
 
+%apply unsigned short *OUTPUT { lgw_spectral_scan_status_t * OUTPUT }
+int lgw_spectral_scan_get_status(lgw_spectral_scan_status_t * OUTPUT);
+
 %include "libloragw/include/loragw_hal.h"
 
 %pythonappend lgw_pkt_rx_array_new %{
@@ -43,6 +46,22 @@ int lgw_status(uint8_t rf_chain, uint8_t select, uint8_t * OUTPUT);
 %array_class(struct lgw_pkt_rx_s, lgw_pkt_rx_array);
 %array_functions(struct lgw_conf_chan_lbt_s, lgw_conf_chan_lbt_s_array);
 %array_functions(struct lgw_tx_gain_s, lgw_tx_gain_s_array);
+%array_class(int16_t, int16_array);
+%array_class(uint16_t, uint16_array);
+
+%inline %{
+  int lgw_spectral_scan_get_results_wrapper(int16_t *levels_dbm, uint16_t *results) {
+      int16_t l[LGW_SPECTRAL_SCAN_RESULT_SIZE];
+      uint16_t r[LGW_SPECTRAL_SCAN_RESULT_SIZE];
+      int res;
+      memset(l, 0, sizeof(l));
+      memset(r, 0, sizeof(r));
+      res = lgw_spectral_scan_get_results(l, r);
+      memcpy(levels_dbm, l, sizeof(l));
+      memcpy(results, r, sizeof(r));
+      return res;
+  }
+%}
 
 %pythonbegin %{
 import json, re, time
@@ -140,9 +159,9 @@ class SX1302:
         if self.power_pin:
             self.power_pin.clear()
 
-    def debug_print(self, message):
+    def debug_print(self, message, *args, **kwargs):
         if self.debug:
-            print(message)
+            print(message, *args, **kwargs)
 
     def load_config(self, json_cfg):
         conf_obj_name = "SX130x_conf"
@@ -708,4 +727,70 @@ class SX1302:
 
         if res != LGW_HAL_SUCCESS:
             raise Exception("ERROR: lgw_send returned %d" % res)
+
+    def spectral_scan(self):
+        if self.spectral_scan_params is None:
+            return
+
+        freq_hz = self.spectral_scan_params.freq_start_hz
+        freq_hz_stop = freq_hz + self.spectral_scan_params.nb_chan * 200_000
+        levels = int16_array(LGW_SPECTRAL_SCAN_RESULT_SIZE)
+        results = uint16_array(LGW_SPECTRAL_SCAN_RESULT_SIZE)
+        last_run = 0
+
+        while True:
+            while time.time() - last_run <= self.spectral_scan_params.pace_s:
+                yield []
+            last_run = time.time()
+            started = False
+            with self.lock:
+                status = TX_FREE
+                for i in range(LGW_RF_CHAIN_NB):
+                    res, status = lgw_status(i, TX_STATUS)
+                    if res != LGW_HAL_SUCCESS:
+                        self.debug_print("ERROR: failed to get TX status on chain %d" % i)
+                    else:
+                        if status in [TX_SCHEDULED, TX_EMITTING]:
+                            self.debug_printf("INFO: skip spectral scan (downlink programmed on RF chain %d)" % i)
+                            break
+                if status not in [TX_SCHEDULED, TX_EMITTING]:
+                    res = lgw_spectral_scan_start(freq_hz, self.spectral_scan_params.nb_scan)
+                    if res != LGW_HAL_SUCCESS:
+                        self.debug_print("ERROR: spectral scan start failed")
+                    else:
+                        started = True
+            if not started:
+                yield []
+            else:
+                status = LGW_SPECTRAL_SCAN_STATUS_UNKNOWN
+                start = time.time()
+                while True:
+                    if time.time() - start > 2:
+                        self.debug_print("ERROR: TIMEOUT on Spectral Scan")
+                        break
+                    with self.lock:
+                        res, status = lgw_spectral_scan_get_status()
+                    if res != LGW_HAL_SUCCESS:
+                        self.debug_print("ERROR: spectral scan status failed")
+                        break
+                    if status in [LGW_SPECTRAL_SCAN_STATUS_COMPLETED, LGW_SPECTRAL_SCAN_STATUS_ABORTED]:
+                        break
+                    time.sleep(.01)
+                if status == LGW_SPECTRAL_SCAN_STATUS_COMPLETED:
+                    with self.lock:
+                        res = lgw_spectral_scan_get_results_wrapper(levels.cast(), results.cast())
+                    if res != LGW_HAL_SUCCESS:
+                        self.debug_print("ERROR: spectral scan get results failed")
+                        yield []
+
+                    yield [freq_hz, [levels[i] for i in range(LGW_SPECTRAL_SCAN_RESULT_SIZE)], [results[i] for i in range(LGW_SPECTRAL_SCAN_RESULT_SIZE)]]
+
+                    freq_hz += 200_000
+                    if freq_hz >= freq_hz_stop:
+                        freq_hz = self.spectral_scan_params.freq_start_hz
+                elif status == LGW_SPECTRAL_SCAN_STATUS_ABORTED:
+                    self.debug_print("INFO: spectral scan has been aborted")
+                else:
+                    self.debug_print("ERROR: spectral scan status us unexpected 0x%02X" % status)
+
 %}

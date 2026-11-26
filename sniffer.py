@@ -21,6 +21,7 @@ signal.signal(signal.SIGHUP, signal_handler)
 signal.signal(signal.SIGTERM, signal_handler)
 
 modem = SX1302(json_cfg, debug=True, reset_pin=SX1302_RESET_PIN, power_pin=SX1302_POWER_EN_PIN)
+scanner = modem.spectral_scan()
 modem.start()
 
 def decode(key, val):
@@ -62,6 +63,11 @@ while running:
                 modem.send(ans)
 
     else:
+        if scanner:
+            scan = next(scanner)
+            if scan:
+                freq_hz, levels, results = scan
+                print("SPECTRAL SCAN - %u Hz: %s" % (freq_hz, " ".join([f"{r}" for r in results])))
         time.sleep(0.001 * FETCH_SLEEP_MS)
         continue
 

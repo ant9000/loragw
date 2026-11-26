@@ -68,6 +68,4 @@ except Exception as e:
 modem.stop()
 ```
 
-# TODO #
-
-SX126x related functions - namely, spectral scan and LBT - are still missing.
+SX126x related functions - namely, spectral scan and LBT - are fully implemented. LBT is directly handled by the radio, while spectral scan requires some code on the user part (see `sniffer.py` as an example).
