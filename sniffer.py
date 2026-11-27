@@ -26,6 +26,16 @@ modem = SX1302(json_cfg, debug=True, reset_pin=SX1302_RESET_PIN, power_pin=SX130
 scanner = modem.spectral_scan()
 modem.start()
 
+def dump(data, indent=""):
+    try:
+        import hexdump
+        out = hexdump.hexdump(data, 'return')
+        if indent:
+            out =  '\n'.join([indent+line for line in out.splitlines()])
+    except:
+        out = data.hex(' ')
+    return out
+
 def decode(key, val):
     if key == "status":
         return {STAT_NO_CRC: "NO CRC", STAT_CRC_BAD: "BAD CRC", STAT_CRC_OK: "CRC OK"}.get(val, "UNDEF")
@@ -53,7 +63,8 @@ while running:
         elif pkt.modulation == MOD_FSK:
             print("\tdatarate %d" % pkt.datarate)
 
-        print("\tpayload: ", pkt.payload)
+        print("\tpayload: ")
+        print(dump(pkt.payload, "\t\t"))
 
         if REPLY_TO_PINGS:
             if pkt.payload[:4] == b'PING':

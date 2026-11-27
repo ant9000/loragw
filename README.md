@@ -70,6 +70,8 @@ modem.stop()
 
 SX126x related functions - namely, spectral scan and LBT - are fully implemented. LBT is directly handled by the radio, while spectral scan requires some code on the user part (see `sniffer.py` as an example).
 
+The sniffer packet dumper will format data using Python library `hexdump`, if available; `pip install hexdump` to activate a more readable output.
+
 # PINOUT FOR TESTED BOARDS #
 
 | PRODUCT | SX1302_RESET_PIN | SX1302_POWER_EN_PIN | SX126X_NRESET_PIN |
